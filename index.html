@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#fdfdfb"><meta name="description" content="灯塔 English Night：500 张中英双语话题卡，抽一张，开启一次面对面的好聊天。"><title>灯塔 English Night · 话题盲盒</title><link rel="icon" href="lighthouse.svg" type="image/svg+xml"><link rel="stylesheet" href="styles.css"><script src="questions.js" defer></script><script src="engine.js" defer></script><script src="app.js" defer></script></head>
+<body>
+<header class="site-header"><a class="brand" href="./" aria-label="灯塔 English Night 首页"><img src="lighthouse.svg" alt="" width="40" height="58"><span>lighthouse</span><b>ENGLISH NIGHT</b></a></header>
+<main>
+<section class="intro"><h1 aria-label="Blind Chat"><span>Blind</span><span>Chat<span class="title-star" aria-hidden="true">✳</span></span></h1><div class="hero-art" role="img" aria-label="手绘小狗和小熊围着一张灯塔话题卡"></div><p class="intro-copy" lang="en">Pick a card.<br class="mobile-break"> Start a conversation.</p><p class="intro-zh">抽一个话题，聊聊你的想法。</p></section>
+<section class="experience" aria-label="话题抽卡">
+<div id="chooser" class="chooser"><div class="section-label"><span>CHOOSE YOUR VIBE</span><span>选择聊天氛围</span></div><div id="levels" class="levels" role="group" aria-label="选择话题等级"></div><details class="theme-picker"><summary>Choose a topic <span>选个具体主题</span></summary><label for="category" class="sr-only">选择主题</label><div class="select-wrap"><select id="category" aria-label="选择主题"></select></div></details><p id="level-note" class="level-note"></p></div>
+<div class="card-meta"><span id="scope-name">全部话题</span><span id="remaining"></span></div>
+<div id="card" class="topic-card"></div>
+<div class="actions"><button id="draw" class="primary" type="button">抽一张 <span aria-hidden="true">↗</span></button><button id="change" class="text-button" type="button" hidden>← 换个主题</button></div>
+<p class="permission-note">没有标准答案。任何话题都可以跳过。</p>
+<p id="storage-note" class="storage-note" hidden>浏览器暂时无法保存进度，本次打开期间仍会避免重复。</p>
+<p id="announcement" class="sr-only" role="status" aria-live="polite"></p>
+</section>
+</main>
+<footer><span>A little surprise. A real connection.</span><button id="restart" class="text-button" type="button">重新开始</button></footer>
+<div id="paper-draw" class="paper-draw" hidden aria-hidden="true"><div class="paper-flight"><div class="paper-sheet"><svg class="paper-creases" viewBox="0 0 240 300" preserveAspectRatio="none"><path d="M0 65 95 110 50 0M95 110 150 50 240 80M95 110 130 200 0 235M130 200 240 150M130 200 185 300M130 200 60 300"/><path d="m95 110 35 90 25-90Z" class="crease-shade"/></svg><span class="paper-question">?</span></div></div><p class="paper-caption">A little surprise…<span>展开一点好奇</span></p></div>
+<dialog id="confirm-dialog" aria-labelledby="dialog-title" aria-describedby="dialog-description"><h2 id="dialog-title">重新开始？</h2><p id="dialog-description"></p><div class="dialog-actions"><button id="cancel-reset" class="secondary" type="button">取消</button><button id="confirm-reset" class="primary" type="button">确认重置</button></div></dialog>
+<noscript>请启用浏览器的 JavaScript 后使用话题盲盒。</noscript>
+</body></html>
