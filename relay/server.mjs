@@ -19,8 +19,8 @@ export function createApp({ttl=12*60*60*1000,allowedOrigin=process.env.FRONTEND_
    if(!url.pathname.startsWith('/api/')){
     const topics=url.pathname.startsWith('/topics/');
     const file=topics?(url.pathname.slice(8)||'index.html'):(url.pathname==='/'?'index.html':url.pathname.slice(1));
-    if(!(topics?['index.html','styles.css','app.js','engine.js','questions.js','questions.json','lighthouse.svg','reference-ui.png']:['index.html','room.js','room.css','config.js']).includes(file))return fail(404,'页面不存在');
-    const types={html:'text/html',js:'text/javascript',css:'text/css',json:'application/json',svg:'image/svg+xml',png:'image/png'};
+    if(!(topics?['index.html','styles.css','coastal.css','app.js','engine.js','questions.js','questions.json','lighthouse.svg','reference-ui.png']:['index.html','room.js','room.css','config.js','coast.png','playful.ttf','FONT-LICENSE.txt']).includes(file))return fail(404,'页面不存在');
+    const types={html:'text/html',js:'text/javascript',css:'text/css',json:'application/json',svg:'image/svg+xml',png:'image/png',ttf:'font/ttf',txt:'text/plain'};
     res.setHeader('Content-Type',types[file.split('.').pop()]+'; charset=utf-8');res.end(await readFile(path.join(topics?path.join(root,'topics'):path.join(root,'public'),file)));return;
    }
    const origin=req.headers.origin;
@@ -38,7 +38,7 @@ export function createApp({ttl=12*60*60*1000,allowedOrigin=process.env.FRONTEND_
     const title=clean(body.title),topic=clean(body.topic,200);if(!title||!topic)fail(400,'请填写活动名称和主题');
     const tables=Array.isArray(body.tables)?[...new Set(body.tables.map(v=>clean(v,30)).filter(Boolean))]:[];
     if(tables.length>50)fail(400,'桌数过多');
-    rooms.set(id,{id,host,title,topic,tables,phase:'intro',round:1,expires:Date.now()+ttl,people:new Map(),cards:new Map(),leaders:new Map()});
+    rooms.set(id,{id,host,title,topic,tables,phase:'intro',round:1,skipped:new Set(),expires:Date.now()+ttl,people:new Map(),cards:new Map(),leaders:new Map()});
     return send({id,token:host,role:'host'},201);
    }
    const match=url.pathname.match(/^\/api\/rooms\/([a-f0-9]{24})(?:\/([a-z]+))?$/);if(!match)fail(404,'入口不存在');
@@ -60,15 +60,16 @@ export function createApp({ttl=12*60*60*1000,allowedOrigin=process.env.FRONTEND_
    if(!action&&req.method==='GET'){
     const people=[...r.people.values()].filter(visible);
     const cards=['wall','reveal'].includes(r.phase)?[...r.cards.values()].filter(c=>visible(r.people.get(c.owner))).sort((a,b)=>a.id.localeCompare(b.id)).map(c=>({id:c.id,text:c.text,revealed:c.revealed,author:c.revealed?r.people.get(c.owner):undefined})):[];
-    return send({title:r.title,topic:r.topic,tables:r.tables,phase:r.phase,round:r.round,expires:r.expires,role:isHost?'host':isLeader?'leader':'participant',me,people,cards,count:people.length,submitted:[...r.cards.values()].filter(c=>visible(r.people.get(c.owner))).length,mine:me?[...r.cards.values()].find(c=>c.owner===auth)?.text||'':undefined});
+    return send({title:r.title,topic:r.topic,tables:r.tables,phase:r.phase,round:r.round,expires:r.expires,role:isHost?'host':isLeader?'leader':'participant',me,people,cards,count:people.length,submitted:[...r.cards.values()].filter(c=>visible(r.people.get(c.owner))).length,completed:people.filter(p=>r.skipped.has(p.id)||[...r.cards.values()].some(c=>r.people.get(c.owner).id===p.id)).length,skipped:me?r.skipped.has(me.id):false,mine:me?[...r.cards.values()].find(c=>c.owner===auth)?.text||'':undefined});
    }
    if(req.method!=='POST')fail(405,'不支持的操作');
-   if(action==='withdraw'){if(!me)fail(403,'请使用参与者入口');for(const [cid,c] of r.cards)if(c.owner===auth)r.cards.delete(cid);return send({ok:true});}
+   if(action==='skip'){if(!me)fail(403,'请使用参与者入口');if(!['intro','collect'].includes(r.phase))fail(409,'本轮已锁定');for(const [cid,c] of r.cards)if(c.owner===auth)r.cards.delete(cid);r.skipped.add(me.id);return send({ok:true});}
+   if(action==='withdraw'){if(!me)fail(403,'请使用参与者入口');r.skipped.delete(me.id);for(const [cid,c] of r.cards)if(c.owner===auth)r.cards.delete(cid);return send({ok:true});}
    if(action==='submit'){
     if(!me)fail(403,'请通过参与者入口填写');if(!['intro','collect'].includes(r.phase))fail(409,'本轮已锁定');
     const text=clean(body.text,240);let card=[...r.cards.values()].find(c=>c.owner===auth);
     if(!text){if(card)r.cards.delete(card.id);return send({ok:true});}
-    if(!card){card={id:randomBytes(12).toString('hex'),owner:auth};r.cards.set(card.id,card);}Object.assign(card,{text,revealed:false});return send({ok:true});
+    if(!card){card={id:randomBytes(12).toString('hex'),owner:auth};r.cards.set(card.id,card);}r.skipped.delete(me.id);Object.assign(card,{text,revealed:false});return send({ok:true});
    }
    if(action==='reveal'){
     const card=r.cards.get(body.id);if(!card)fail(404,'句子不存在');
@@ -85,10 +86,10 @@ export function createApp({ttl=12*60*60*1000,allowedOrigin=process.env.FRONTEND_
    if(!isHost)fail(403,'只有主持人可以执行');
    if(action==='end'){rooms.delete(id);return send({ok:true});}
    if(action==='phase'){
-    if(!['intro','collect','wall','reveal'].includes(body.phase))fail(400,'阶段不存在');
+    if(!['intro','collect','wall','reveal','topics'].includes(body.phase))fail(400,'阶段不存在');
     if(['intro','collect'].includes(body.phase)&&[...r.cards.values()].some(c=>c.revealed))fail(409,'已揭晓后请开启新一轮');r.phase=body.phase;return send({ok:true});
    }
-   if(action==='round'){r.round++;r.cards.clear();r.topic=clean(body.topic,200)||r.topic;r.phase='collect';return send({ok:true});}
+   if(action==='round'){r.round++;r.cards.clear();r.skipped.clear();r.topic=clean(body.topic,200)||r.topic;r.phase='collect';return send({ok:true});}
    if(action==='leader'){
     const p=[...r.people.values()].find(p=>p.id===body.id);if(!p||!r.tables.includes(p.table))fail(400,'请先选择一位已分桌的参与者');r.leaders.set(p.table,p.id);return send({ok:true});
    }

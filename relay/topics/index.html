@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#fdfdfb"><meta name="description" content="灯塔 English Night：540 张中英双语话题卡，抽一张，开启一次面对面的好聊天。"><title>灯塔 English Night · 话题盲盒</title><link rel="icon" href="lighthouse.svg" type="image/svg+xml"><link rel="stylesheet" href="styles.css"><script src="questions.js" defer></script><script src="engine.js" defer></script><script src="app.js" defer></script></head>
-<body>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#fdfdfb"><meta name="description" content="灯塔 English Night：540 张中英双语话题卡，抽一张，开启一次面对面的好聊天。"><title>灯塔 English Night · 话题盲盒</title><link rel="icon" href="lighthouse.svg" type="image/svg+xml"><link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="coastal.css"><script src="questions.js" defer></script><script src="engine.js" defer></script><script src="app.js" defer></script></head>
+<body><script>if(new URLSearchParams(location.search).has("embedded"))document.body.classList.add("embedded");</script>
 <header class="site-header"><a class="brand" href="./" aria-label="灯塔 English Night 首页"><img src="lighthouse.svg" alt="" width="40" height="58"><span>lighthouse</span><b>ENGLISH NIGHT</b></a></header>
 <main>
 <section class="intro"><h1 aria-label="Blind Chat"><span>Blind</span><span>Chat<span class="title-star" aria-hidden="true">✳</span></span></h1><div class="hero-art" role="img" aria-label="手绘小狗和小熊围着一张灯塔话题卡"></div><p class="intro-copy" lang="en">Pick a card.<br class="mobile-break"> Start a conversation.</p><p><a href="/" class="text-button">Who said that? 原来是你 · 破冰活动 →</a></p><p class="intro-zh">抽一个话题，聊聊你的想法。</p></section>
@@ -19,4 +19,4 @@
 <div id="paper-draw" class="paper-draw" hidden aria-hidden="true"><div class="paper-flight"><div class="paper-sheet"><svg class="paper-creases" viewBox="0 0 240 300" preserveAspectRatio="none"><path d="M0 65 95 110 50 0M95 110 150 50 240 80M95 110 130 200 0 235M130 200 240 150M130 200 185 300M130 200 60 300"/><path d="m95 110 35 90 25-90Z" class="crease-shade"/></svg><span class="paper-question">?</span></div></div><p class="paper-caption">A little surprise…<span>展开一点好奇</span></p></div>
 <dialog id="confirm-dialog" aria-labelledby="dialog-title" aria-describedby="dialog-description"><h2 id="dialog-title">重新开始？</h2><p id="dialog-description"></p><div class="dialog-actions"><button id="cancel-reset" class="secondary" type="button">取消</button><button id="confirm-reset" class="primary" type="button">确认重置</button></div></dialog>
 <noscript>请启用浏览器的 JavaScript 后使用话题盲盒。</noscript>
-</body></html>
+<script>if(new URLSearchParams(location.search).has('embedded')){const report=()=>parent.postMessage({type:'lighthouse-topic-height',height:document.querySelector('main').scrollHeight+48},location.origin);new ResizeObserver(report).observe(document.querySelector('main'));window.addEventListener('load',report);}</script></body></html>
