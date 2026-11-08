@@ -71,13 +71,14 @@ export function createApp({ttl=12*60*60*1000,allowedOrigin=process.env.FRONTEND_
     return send({title:r.title,topic:r.topic,tables:r.tables,phase:r.phase,round:r.round,expires:r.expires,deck:shared,serverTime:Date.now(),role:isDisplay?'display':isHost?'host':isLeader?'leader':'participant',me,people,cards,count:people.length,submitted:[...r.cards.values()].filter(c=>visible(r.people.get(c.owner))).length,completed:people.filter(p=>r.skipped.has(p.id)||[...r.cards.values()].some(c=>r.people.get(c.owner).id===p.id)).length,skipped:me?r.skipped.has(me.id):false,mine:me?[...r.cards.values()].find(c=>c.owner===auth)?.text||'':undefined});
    }
    if(req.method!=='POST')fail(405,'不支持的操作');
-   if(isDisplay)fail(403,'投屏入口只可观看');
-   if(['draw','next','pick','deckfilter','hint'].includes(action)){
+   if(isDisplay&&!['draw','redraw','next','hint'].includes(action))fail(403,'大屏仅支持抽卡和提示操作');
+   if(['draw','redraw','next','pick','deckfilter','hint'].includes(action)){
     if(r.phase!=='topics')fail(409,'请等待主持人进入抽卡环节');
-    const manager=isHost||isLeader;
-    if(action==='draw'){
+    const manager=isHost||isLeader||isDisplay;
+    if(action==='draw'||action==='redraw'){
+     if(action==='redraw'&&!manager)fail(403,'只有主持人或大屏可以换题');
      if(!manager&&me?.id!==deck.turn)fail(403,'还没有轮到你');
-     if(body.revision!==deck.revision||deck.card)fail(409,'这轮已经抽过，请等待下一位');
+     if(body.revision!==deck.revision||(action==='draw'&&deck.card))fail(409,'这轮已经抽过，请等待下一位');
      if(!deck.turn)fail(409,'请先邀请一位参与者');
      const available=pool.filter(q=>!r.used.has(q.id));if(!available.length)fail(409,'这一组话题已抽完，请换个等级');
      deck.card=available[Math.floor(Math.random()*available.length)];r.used.add(deck.card.id);deck.drawnBy=order.find(p=>p.id===deck.turn);deck.revealAt=Date.now()+3000;deck.revision++;return send({ok:true});

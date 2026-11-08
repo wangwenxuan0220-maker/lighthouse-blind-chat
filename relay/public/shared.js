@@ -24,6 +24,8 @@ function renderProjection(waiting){
  const d=state.deck,person=d.order.find(p=>p.id===d.turn);$('screen-room').textContent=state.title;
  $('screen-count').textContent=`${d.scope||'全场'} · ${state.count} 人`;$('screen-turn').textContent=d.card?`${d.drawnBy?.name} 的好奇心 ✦`:person?`下一束灯光：${person.name}`:'等待伙伴加入';
  $('screen-table').hidden=!state.tables.length;
+ for(const key of ['screen-redraw','screen-next','screen-cycle'])$(key).disabled=state.phase!=='topics'||!person||Boolean(waiting);
+ $('screen-redraw').textContent=d.card?'✦ 再抽一张':'✦ 抽一张';
  const options=state.tables.map(t=>`<option>${esc(t)}</option>`).join('');if($('screen-table').innerHTML!==options){$('screen-table').innerHTML=options;$('screen-table').value=d.scope;}
  const stamp=JSON.stringify([state.phase,d.scope,d.revision,d.hint,waiting,state.completed,state.count,state.cards]);if(stamp===projectionStamp)return;projectionStamp=stamp;
  const animate=projectionRevision!==d.scope+':'+d.revision;if(!waiting)projectionRevision=d.scope+':'+d.revision;
@@ -44,6 +46,10 @@ window.addEventListener('DOMContentLoaded',()=>{
  $('deck-level').onchange=run(async()=>{await api('deckfilter',{level:$('deck-level').value});await refresh();});
  $('screen-hint').onchange=run(async()=>{await api('hint',{hint:$('screen-hint').value});await refresh();});
  $('open-projector').onclick=run(async()=>{const w=window.open('about:blank','lighthouse-projector');try{const data=await api('projection',{});const url=new URL(location.href);url.hash='room='+id+'&screen='+data.token;if(w)w.location.href=url.href;else throw Error('浏览器拦截了新窗口，请允许本网站打开投屏窗口后重试。');}catch(e){w?.close();throw e;}});
+ $('screen-redraw').onclick=run(async()=>{await api('redraw',{revision:state.deck.revision});await refresh();});
+ $('screen-next').onclick=run(async()=>{await api('next',{revision:state.deck.revision});await refresh();});
+ $('screen-cycle').onclick=run(async()=>{const hints=['vocabulary','sentenceStarters','followUps'];await api('hint',{hint:hints[(hints.indexOf(state.deck.hint)+1)%hints.length]});await refresh();});
+ $('screen-toggle').onclick=()=>{const hidden=!$('screen-controls').hidden;$('screen-controls').hidden=hidden;$('screen-toggle').textContent=hidden?'展开操作':'收起操作';$('screen-toggle').setAttribute('aria-expanded',String(!hidden));};
  $('screen-table').onchange=run(async()=>{table=$('screen-table').value;await refresh();});
  $('screen-fullscreen').onclick=run(async()=>{if(!document.fullscreenElement)await document.documentElement.requestFullscreen();else await document.exitFullscreen();});
 });
