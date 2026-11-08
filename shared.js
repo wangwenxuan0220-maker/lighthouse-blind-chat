@@ -10,6 +10,8 @@ function renderShared(){
  $('turn-note').textContent=d.card?'同一张话题，所有人一起聊。':mine?'你的手机就是遥控器，轻点下面的盲盒吧。':'轮到的伙伴在手机抽卡，大屏和大家的手机会一起更新。';
  $('shared-draw').hidden=Boolean(d.card)||!(manager||mine);$('shared-draw').disabled=!person||state.phase!=='topics';
  $('deck-manager').hidden=!manager;
+ $('player-filters').hidden=!(manager||(mine&&!d.card));
+ renderFilters('player',d);renderFilters('projector',d);
  const options=d.order.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('');if($('pick-person').innerHTML!==options)$('pick-person').innerHTML=options;
  if(document.activeElement!==$('deck-level'))$('deck-level').value=String(d.level);if(document.activeElement!==$('screen-hint'))$('screen-hint').value=d.hint;
  $('deck-remaining').textContent=`${d.scope?d.scope+' · ':''}本活动该等级还剩 ${d.remaining} 张 · 全场不重复`;
@@ -39,11 +41,25 @@ function renderProjection(waiting){
   $('screen-topic').innerHTML=`<p class="eyebrow">GATHERING OUR CREW</p><div class="spotlight-icon">✷</div><h1>${state.completed} / ${state.count}</h1><p>位伙伴已准备好 · 等待主持人开启</p>`;$('screen-help').innerHTML=`<h2>今晚的话题</h2><p>${esc(state.topic)}</p><p>在自己的手机填写，灯塔会把大家的故事收集起来。</p>`;
  }
 }
+function renderFilters(prefix,d){
+ const level=$(prefix+'-level'),category=$(prefix+'-category');
+ if(!level.options.length)level.innerHTML='<option value="0">全部等级</option>'+d.levels.map(l=>`<option value="${l.id}">L${l.id} · ${esc(l.name)}</option>`).join('');
+ const options='<option value="">全部话题</option>'+d.categories.filter(c=>!d.level||c.level===d.level).map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
+ if(category.innerHTML!==options)category.innerHTML=options;
+ if(document.activeElement!==level)level.value=String(d.level);
+ if(document.activeElement!==category)category.value=d.category||'';
+ level.disabled=category.disabled=state.phase!=='topics';
+}
 window.addEventListener('DOMContentLoaded',()=>{
+ for(const prefix of ['player','projector'])for(const field of ['level','category'])$(prefix+'-'+field).onchange=run(async()=>{
+  const level=Number($(prefix+'-level').value);let category=$(prefix+'-category').value;
+  if(category&&level&&!state.deck.categories.some(c=>c.id===category&&c.level===level))category='';
+  await api('deckfilter',{level,category});await refresh();
+ });
  $('shared-draw').onclick=run(async()=>{$('shared-draw').disabled=true;try{await api('draw',{revision:state.deck.revision});await refresh();}finally{if(state)renderShared();}});
  $('next-turn').onclick=run(async()=>{await api('next',{revision:state.deck.revision});await refresh();});
  $('pick-turn').onclick=run(async()=>{await api('pick',{revision:state.deck.revision,id:$('pick-person').value});await refresh();});
- $('deck-level').onchange=run(async()=>{await api('deckfilter',{level:$('deck-level').value});await refresh();});
+ $('deck-level').onchange=run(async()=>{await api('deckfilter',{level:$('deck-level').value,category:''});await refresh();});
  $('screen-hint').onchange=run(async()=>{await api('hint',{hint:$('screen-hint').value});await refresh();});
  $('open-projector').onclick=run(async()=>{const w=window.open('about:blank','lighthouse-projector');try{const data=await api('projection',{});const url=new URL(location.href);url.hash='room='+id+'&screen='+data.token;if(w)w.location.href=url.href;else throw Error('浏览器拦截了新窗口，请允许本网站打开投屏窗口后重试。');}catch(e){w?.close();throw e;}});
  $('screen-redraw').onclick=run(async()=>{await api('redraw',{revision:state.deck.revision});await refresh();});

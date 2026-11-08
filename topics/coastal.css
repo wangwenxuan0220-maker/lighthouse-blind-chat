@@ -3,3 +3,5 @@
 @font-face{font-family:LighthousePlay;src:url('../playful.ttf') format('truetype');font-display:swap}.question-en,h1,.intro-copy{font-family:LighthousePlay,'Arial Rounded MT Bold',sans-serif;font-weight:400}.question-zh{font-family:LighthousePlay,'PingFang SC',sans-serif;font-size:24px}
 
 body.embedded{min-height:0}body.embedded main{min-height:0}
+
+[lang="en"]{font-family:Arial,"Helvetica Neue",sans-serif!important;letter-spacing:normal}

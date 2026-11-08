@@ -60,18 +60,18 @@ export function createApp({ttl=12*60*60*1000,allowedOrigin=process.env.FRONTEND_
    const visible=p=>!r.tables.length||((isHost||isDisplay)&&!scope)||p.table===scope;
    const tableScope=r.tables.length?(isHost||isDisplay?(url.searchParams.get('table')||r.tables[0]):me.table):'';
    const order=[...r.people.values()].filter(p=>!r.tables.length||p.table===tableScope);
-   if(!r.decks.has(tableScope))r.decks.set(tableScope,{turn:order[0]?.id||null,revision:0,card:null,drawnBy:null,revealAt:0,level:0,hint:'vocabulary'});
+   if(!r.decks.has(tableScope))r.decks.set(tableScope,{turn:order[0]?.id||null,revision:0,card:null,drawnBy:null,revealAt:0,level:0,category:'',hint:'vocabulary'});
    const deck=r.decks.get(tableScope);
    if(!order.some(p=>p.id===deck.turn))deck.turn=order[0]?.id||null;
-   const pool=topicBank.questions.filter(q=>!deck.level||q.level===deck.level);
-   const shared={...deck,scope:tableScope,order:order.map(p=>({id:p.id,name:p.name})),remaining:pool.filter(q=>!r.used.has(q.id)).length};
+   const pool=topicBank.questions.filter(q=>(!deck.level||q.level===deck.level)&&(!deck.category||q.category===deck.category));
+   const shared={...deck,categories:topicBank.categories,levels:topicBank.levels,scope:tableScope,order:order.map(p=>({id:p.id,name:p.name})),remaining:pool.filter(q=>!r.used.has(q.id)).length};
    if(!action&&req.method==='GET'){
     const people=[...r.people.values()].filter(visible);
     const cards=['wall','reveal'].includes(r.phase)?[...r.cards.values()].filter(c=>visible(r.people.get(c.owner))).sort((a,b)=>a.id.localeCompare(b.id)).map(c=>({id:c.id,text:c.text,revealed:c.revealed,author:c.revealed?r.people.get(c.owner):undefined})):[];
     return send({title:r.title,topic:r.topic,tables:r.tables,phase:r.phase,round:r.round,expires:r.expires,deck:shared,serverTime:Date.now(),role:isDisplay?'display':isHost?'host':isLeader?'leader':'participant',me,people,cards,count:people.length,submitted:[...r.cards.values()].filter(c=>visible(r.people.get(c.owner))).length,completed:people.filter(p=>r.skipped.has(p.id)||[...r.cards.values()].some(c=>r.people.get(c.owner).id===p.id)).length,skipped:me?r.skipped.has(me.id):false,mine:me?[...r.cards.values()].find(c=>c.owner===auth)?.text||'':undefined});
    }
    if(req.method!=='POST')fail(405,'不支持的操作');
-   if(isDisplay&&!['draw','redraw','next','hint'].includes(action))fail(403,'大屏仅支持抽卡和提示操作');
+   if(isDisplay&&!['draw','redraw','next','hint','deckfilter'].includes(action))fail(403,'大屏仅支持抽卡和提示操作');
    if(['draw','redraw','next','pick','deckfilter','hint'].includes(action)){
     if(r.phase!=='topics')fail(409,'请等待主持人进入抽卡环节');
     const manager=isHost||isLeader||isDisplay;
@@ -83,9 +83,17 @@ export function createApp({ttl=12*60*60*1000,allowedOrigin=process.env.FRONTEND_
      const available=pool.filter(q=>!r.used.has(q.id));if(!available.length)fail(409,'这一组话题已抽完，请换个等级');
      deck.card=available[Math.floor(Math.random()*available.length)];r.used.add(deck.card.id);deck.drawnBy=order.find(p=>p.id===deck.turn);deck.revealAt=Date.now()+3000;deck.revision++;return send({ok:true});
     }
+    if(action==='deckfilter'){
+     if(!manager&&(me?.id!==deck.turn||deck.card))fail(403,'请在轮到你且尚未抽卡时选择');
+     const n=Number(body.level),category=body.category??deck.category??'';
+     if(!Number.isInteger(n)||n<0||n>5)fail(400,'等级无效');
+     if(category&&!topicBank.categories.some(c=>c.id===category))fail(400,'话题不存在');
+     if(!topicBank.questions.some(q=>(!n||q.level===n)&&(!category||q.category===category)))fail(400,'该等级下没有此话题，请重新选择');
+     deck.level=n;deck.category=category;return send({ok:true});
+    }
     if(!manager)fail(403,'只有主持人或本桌桌长可以安排轮次');
     if(action==='hint'){if(!['vocabulary','sentenceStarters','followUps'].includes(body.hint))fail(400,'提示类型不存在');deck.hint=body.hint;return send({ok:true});}
-    if(action==='deckfilter'){const n=Number(body.level);if(!Number.isInteger(n)||n<0||n>5)fail(400,'等级无效');deck.level=n;return send({ok:true});}
+    
     if(body.revision!==deck.revision)fail(409,'轮次已更新，请稍后重试');
     if(action==='pick'){if(!order.some(p=>p.id===body.id))fail(400,'参与者不在本桌');deck.turn=body.id;}
     else deck.turn=order[(order.findIndex(p=>p.id===deck.turn)+1)%order.length]?.id||null;
