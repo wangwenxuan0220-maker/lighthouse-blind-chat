@@ -2,12 +2,14 @@
 const API_BASE=(window.ROOM_API_BASE||'').replace(/\/$/,'');
 const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let id=new URLSearchParams(location.hash.slice(1)).get('room'),credential=null,state=null,selected=null,table='',polling=false,ended=false,refreshHandle,expiryHandle,lastRound,editing=false,solo=false;
+const displayToken=new URLSearchParams(location.hash.slice(1)).get('screen');
 const key=()=>`lighthouse-room:${id}`;
 try{credential=JSON.parse(sessionStorage.getItem(key())||'null');}catch{}
+if(displayToken){credential={token:displayToken,role:'display'};document.body.classList.add('projector');}
 function store(value){credential=value;try{if(value)sessionStorage.setItem(key(),JSON.stringify(value));else sessionStorage.removeItem(key());}catch{$('status').textContent='浏览器不能保存临时凭证，刷新后需要重新加入。';}}
-function clearRoom(message){ended=true;$('topics-screen').hidden=true;$('topic-frame').removeAttribute('src');clearInterval(refreshHandle);clearInterval(expiryHandle);store(null);state=null;selected=null;$('room').hidden=true;$('room').querySelectorAll('input,textarea').forEach(el=>el.value='');$('people').replaceChildren();$('wall').replaceChildren();$('card-text').textContent='';$('card-author').textContent='';$('card-dialog').close();$('join').hidden=true;$('status').textContent=message;}
+function clearRoom(message){ended=true;$('topics-screen').hidden=true;$('topic-frame').removeAttribute('src');if(displayToken){$('screen-topic').textContent=message;$('screen-help').replaceChildren();}clearInterval(refreshHandle);clearInterval(expiryHandle);store(null);state=null;selected=null;$('room').hidden=true;$('room').querySelectorAll('input,textarea').forEach(el=>el.value='');$('people').replaceChildren();$('wall').replaceChildren();$('card-text').textContent='';$('card-author').textContent='';$('card-dialog').close();$('join').hidden=true;$('status').textContent=message;}
 async function api(action='',body,base=false){
- const res=await fetch(API_BASE+(base?'/api/rooms':`/api/rooms/${id}${action?'/'+action:''}${!action&&table?'?table='+encodeURIComponent(table):''}`),{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json',...(credential?{Authorization:'Bearer '+credential.token}:{})},...(body!==undefined?{body:JSON.stringify(body)}:{})});
+ const res=await fetch(API_BASE+(base?'/api/rooms':`/api/rooms/${id}${action?'/'+action:''}${table?'?table='+encodeURIComponent(table):''}`),{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json',...(credential?{Authorization:'Bearer '+credential.token}:{})},...(body!==undefined?{body:JSON.stringify(body)}:{})});
  const data=await res.json();if(!res.ok){if(res.status===410)clearRoom(data.error);throw Error(data.error);}return data;
 }
 function run(fn){return async e=>{e?.preventDefault();try{$('status').textContent='';await fn(e);}catch(err){$('status').textContent=err.message;}};}
@@ -15,6 +17,7 @@ function fields(tables,p={}){return `<label>名字或昵称 *<input name="name" 
 function profile(p){return `<h4>${esc(p.name)} <small>身份编号 ${esc(p.id.slice(-4))}</small></h4><p>${[p.industry,p.star,p.mbti,p.table].filter(Boolean).map(esc).join(' · ')||'很高兴认识你！'}</p><p lang="en">Hi, I’m ${esc(p.name)}.${p.industry?' I work in '+esc(p.industry)+'.':''}${p.star?' My star sign is '+esc(p.star)+'.':''}${p.mbti?' My MBTI type is '+esc(p.mbti)+'.':''}</p>`;}
 function updateDialog(){const c=state?.cards.find(c=>c.id===selected);if(!c){$('card-dialog').close();return;}$('card-text').textContent=c.text;$('card-author').innerHTML=c.revealed?`<strong>It’s me! 原来是我！</strong>${profile(c.author)}<p>Tell us the story behind it.<br>聊聊这句话背后的故事吧。</p>`:'先猜猜是谁，再请对方分享。';$('reveal').hidden=c.revealed||!['host','leader'].includes(state.role);$('hide-card').hidden=state.role!=='host';}
 function render(){
+ $('solo').hidden=Boolean(id);renderShared();
  document.body.dataset.active='true';$('entry').hidden=true;$('join').hidden=true;$('room').hidden=false;$('room-title').textContent=state.title;$('topic').textContent=state.topic;$('counts').textContent=`${state.count} 人 · 已提交 ${state.submitted} 句`;
  $('host').hidden=state.role!=='host';$('participant').hidden=state.role==='host';
  if(state.role==='host'){$('table-label').hidden=!state.tables.length;const options='<option value="">全场</option>'+state.tables.map(t=>`<option>${esc(t)}</option>`).join('');if($('table-filter').innerHTML!==options){$('table-filter').innerHTML=options;$('table-filter').value=table;}}
@@ -61,7 +64,7 @@ $('end').onclick=run(async()=>{if(!confirm('结束后所有身份和句子都会
 run(async()=>{if(!id)return;document.body.dataset.active='true';if(credential){await start();if(state?.role==='host')await invite();}else{const info=await api('info');$('entry').hidden=true;$('join').hidden=false;$('join-title').textContent=info.title;$('join-topic').textContent=info.topic;$('join-form').innerHTML=fields(info.tables);}})();
 window.addEventListener('hashchange',()=>{if(new URLSearchParams(location.hash.slice(1)).get('room')!==id)location.reload();});
 
-function showTopics(show){$('topics-screen').hidden=!show;if(show){$('room').hidden=state?.role!=='host';$('entry').hidden=true;$('join').hidden=true;if(!$('topic-frame').getAttribute('src'))$('topic-frame').src=$('topic-frame').dataset.src;}else if(state){$('room').hidden=false;}}
+function showTopics(show){$('topics-screen').hidden=!show;if(show){$('room').hidden=state?.role!=='host';$('entry').hidden=true;$('join').hidden=true;$('shared-deck').hidden=!state||solo;$('topic-frame').hidden=Boolean(state)&&!solo;if((!state||solo)&&!$('topic-frame').getAttribute('src'))$('topic-frame').src=$('topic-frame').dataset.src;}else if(state){$('room').hidden=false;}}
 $('solo').onclick=()=>{solo=true;showTopics(true);document.body.dataset.active='true';document.querySelectorAll('#journey li').forEach((el,i)=>el.classList.toggle('current',i===3));};
 $('back-event').onclick=()=>{solo=false;if(state?.phase==='topics'){if(state.role==='host')run(async()=>{await api('phase',{phase:'wall'});await refresh();})();else $('status').textContent='大家正在抽话题，由主持人控制下一环节。';}else if(state)render();else{showTopics(false);$('entry').hidden=false;document.body.dataset.active='false';}};
 $('edit-answer').onclick=()=>{editing=true;render();};

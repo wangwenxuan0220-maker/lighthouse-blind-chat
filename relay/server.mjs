@@ -5,6 +5,7 @@ import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import QRCode from 'qrcode';
 const root=path.dirname(fileURLToPath(import.meta.url));
+const topicBank=JSON.parse(await readFile(path.join(root,'topics/questions.json'),'utf8'));
 const token=()=>randomBytes(24).toString('hex');
 const clean=(v,max=80)=>typeof v==='string'?v.trim().slice(0,max):'';
 const fail=(code,message)=>{throw Object.assign(new Error(message),{code});};
@@ -19,7 +20,7 @@ export function createApp({ttl=12*60*60*1000,allowedOrigin=process.env.FRONTEND_
    if(!url.pathname.startsWith('/api/')){
     const topics=url.pathname.startsWith('/topics/');
     const file=topics?(url.pathname.slice(8)||'index.html'):(url.pathname==='/'?'index.html':url.pathname.slice(1));
-    if(!(topics?['index.html','styles.css','coastal.css','app.js','engine.js','questions.js','questions.json','lighthouse.svg','reference-ui.png']:['index.html','room.js','room.css','config.js','coast.png','playful.ttf','FONT-LICENSE.txt']).includes(file))return fail(404,'页面不存在');
+    if(!(topics?['index.html','styles.css','coastal.css','app.js','engine.js','questions.js','questions.json','lighthouse.svg','reference-ui.png']:['index.html','room.js','shared.js','room.css','config.js','coast.png','playful.ttf','FONT-LICENSE.txt']).includes(file))return fail(404,'页面不存在');
     const types={html:'text/html',js:'text/javascript',css:'text/css',json:'application/json',svg:'image/svg+xml',png:'image/png',ttf:'font/ttf',txt:'text/plain'};
     res.setHeader('Content-Type',types[file.split('.').pop()]+'; charset=utf-8');res.end(await readFile(path.join(topics?path.join(root,'topics'):path.join(root,'public'),file)));return;
    }
@@ -38,7 +39,7 @@ export function createApp({ttl=12*60*60*1000,allowedOrigin=process.env.FRONTEND_
     const title=clean(body.title),topic=clean(body.topic,200);if(!title||!topic)fail(400,'请填写活动名称和主题');
     const tables=Array.isArray(body.tables)?[...new Set(body.tables.map(v=>clean(v,30)).filter(Boolean))]:[];
     if(tables.length>50)fail(400,'桌数过多');
-    rooms.set(id,{id,host,title,topic,tables,phase:'intro',round:1,skipped:new Set(),expires:Date.now()+ttl,people:new Map(),cards:new Map(),leaders:new Map()});
+    rooms.set(id,{id,host,displayToken:token(),decks:new Map(),used:new Set(),title,topic,tables,phase:'intro',round:1,skipped:new Set(),expires:Date.now()+ttl,people:new Map(),cards:new Map(),leaders:new Map()});
     return send({id,token:host,role:'host'},201);
    }
    const match=url.pathname.match(/^\/api\/rooms\/([a-f0-9]{24})(?:\/([a-z]+))?$/);if(!match)fail(404,'入口不存在');
@@ -53,16 +54,43 @@ export function createApp({ttl=12*60*60*1000,allowedOrigin=process.env.FRONTEND_
     return send({id,token:t,role:'participant'},201);
    }
    const auth=(req.headers.authorization||'').replace(/^Bearer /,'');
-   const isHost=auth===r.host,me=r.people.get(auth);if(!isHost&&!me)fail(401,'请重新扫码加入');
+   const isHost=auth===r.host,isDisplay=auth===r.displayToken,me=r.people.get(auth);if(!isHost&&!isDisplay&&!me)fail(401,'请重新扫码加入');
    const isLeader=me&&r.leaders.get(me.table)===me.id;
-   const scope=isHost?(url.searchParams.get('table')||''):me.table;
-   const visible=p=>!r.tables.length||(isHost&&!scope)||p.table===scope;
+   const scope=(isHost||isDisplay)?(url.searchParams.get('table')||((r.phase==='topics'||isDisplay)&&r.tables.length?r.tables[0]:'')):me.table;
+   const visible=p=>!r.tables.length||((isHost||isDisplay)&&!scope)||p.table===scope;
+   const tableScope=r.tables.length?(isHost||isDisplay?(url.searchParams.get('table')||r.tables[0]):me.table):'';
+   const order=[...r.people.values()].filter(p=>!r.tables.length||p.table===tableScope);
+   if(!r.decks.has(tableScope))r.decks.set(tableScope,{turn:order[0]?.id||null,revision:0,card:null,drawnBy:null,revealAt:0,level:0,hint:'vocabulary'});
+   const deck=r.decks.get(tableScope);
+   if(!order.some(p=>p.id===deck.turn))deck.turn=order[0]?.id||null;
+   const pool=topicBank.questions.filter(q=>!deck.level||q.level===deck.level);
+   const shared={...deck,scope:tableScope,order:order.map(p=>({id:p.id,name:p.name})),remaining:pool.filter(q=>!r.used.has(q.id)).length};
    if(!action&&req.method==='GET'){
     const people=[...r.people.values()].filter(visible);
     const cards=['wall','reveal'].includes(r.phase)?[...r.cards.values()].filter(c=>visible(r.people.get(c.owner))).sort((a,b)=>a.id.localeCompare(b.id)).map(c=>({id:c.id,text:c.text,revealed:c.revealed,author:c.revealed?r.people.get(c.owner):undefined})):[];
-    return send({title:r.title,topic:r.topic,tables:r.tables,phase:r.phase,round:r.round,expires:r.expires,role:isHost?'host':isLeader?'leader':'participant',me,people,cards,count:people.length,submitted:[...r.cards.values()].filter(c=>visible(r.people.get(c.owner))).length,completed:people.filter(p=>r.skipped.has(p.id)||[...r.cards.values()].some(c=>r.people.get(c.owner).id===p.id)).length,skipped:me?r.skipped.has(me.id):false,mine:me?[...r.cards.values()].find(c=>c.owner===auth)?.text||'':undefined});
+    return send({title:r.title,topic:r.topic,tables:r.tables,phase:r.phase,round:r.round,expires:r.expires,deck:shared,serverTime:Date.now(),role:isDisplay?'display':isHost?'host':isLeader?'leader':'participant',me,people,cards,count:people.length,submitted:[...r.cards.values()].filter(c=>visible(r.people.get(c.owner))).length,completed:people.filter(p=>r.skipped.has(p.id)||[...r.cards.values()].some(c=>r.people.get(c.owner).id===p.id)).length,skipped:me?r.skipped.has(me.id):false,mine:me?[...r.cards.values()].find(c=>c.owner===auth)?.text||'':undefined});
    }
    if(req.method!=='POST')fail(405,'不支持的操作');
+   if(isDisplay)fail(403,'投屏入口只可观看');
+   if(['draw','next','pick','deckfilter','hint'].includes(action)){
+    if(r.phase!=='topics')fail(409,'请等待主持人进入抽卡环节');
+    const manager=isHost||isLeader;
+    if(action==='draw'){
+     if(!manager&&me?.id!==deck.turn)fail(403,'还没有轮到你');
+     if(body.revision!==deck.revision||deck.card)fail(409,'这轮已经抽过，请等待下一位');
+     if(!deck.turn)fail(409,'请先邀请一位参与者');
+     const available=pool.filter(q=>!r.used.has(q.id));if(!available.length)fail(409,'这一组话题已抽完，请换个等级');
+     deck.card=available[Math.floor(Math.random()*available.length)];r.used.add(deck.card.id);deck.drawnBy=order.find(p=>p.id===deck.turn);deck.revealAt=Date.now()+3000;deck.revision++;return send({ok:true});
+    }
+    if(!manager)fail(403,'只有主持人或本桌桌长可以安排轮次');
+    if(action==='hint'){if(!['vocabulary','sentenceStarters','followUps'].includes(body.hint))fail(400,'提示类型不存在');deck.hint=body.hint;return send({ok:true});}
+    if(action==='deckfilter'){const n=Number(body.level);if(!Number.isInteger(n)||n<0||n>5)fail(400,'等级无效');deck.level=n;return send({ok:true});}
+    if(body.revision!==deck.revision)fail(409,'轮次已更新，请稍后重试');
+    if(action==='pick'){if(!order.some(p=>p.id===body.id))fail(400,'参与者不在本桌');deck.turn=body.id;}
+    else deck.turn=order[(order.findIndex(p=>p.id===deck.turn)+1)%order.length]?.id||null;
+    deck.card=null;deck.drawnBy=null;deck.revealAt=0;deck.revision++;return send({ok:true});
+   }
+
    if(action==='skip'){if(!me)fail(403,'请使用参与者入口');if(!['intro','collect'].includes(r.phase))fail(409,'本轮已锁定');for(const [cid,c] of r.cards)if(c.owner===auth)r.cards.delete(cid);r.skipped.add(me.id);return send({ok:true});}
    if(action==='withdraw'){if(!me)fail(403,'请使用参与者入口');r.skipped.delete(me.id);for(const [cid,c] of r.cards)if(c.owner===auth)r.cards.delete(cid);return send({ok:true});}
    if(action==='submit'){
@@ -84,6 +112,7 @@ export function createApp({ttl=12*60*60*1000,allowedOrigin=process.env.FRONTEND_
     Object.assign(me,{name:clean(body.name,30),industry:clean(body.industry),star:clean(body.star,30),mbti:clean(body.mbti,30),table});return send({ok:true});
    }
    if(!isHost)fail(403,'只有主持人可以执行');
+   if(action==='projection')return send({token:r.displayToken});
    if(action==='end'){rooms.delete(id);return send({ok:true});}
    if(action==='phase'){
     if(!['intro','collect','wall','reveal','topics'].includes(body.phase))fail(400,'阶段不存在');
